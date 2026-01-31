@@ -5,6 +5,20 @@ import 'package:audioplayers/audioplayers.dart';
 
 enum FlowerType { sunflower, rose, lotus }
 
+class PlantTheme {
+  final String name;
+  final Color color;
+  final String soundPath;
+  final IconData icon;
+
+  PlantTheme({
+    required this.name,
+    required this.color,
+    required this.soundPath,
+    required this.icon,
+  });
+}
+
 class PlantTimerPage extends StatefulWidget {
   const PlantTimerPage({super.key});
 
@@ -35,6 +49,35 @@ class _PlantTimerPageState extends State<PlantTimerPage>
   bool _milestone50 = false;
   bool _milestone75 = false;
   bool _milestone100 = false;
+
+  // Theme Logic
+  int _currentThemeIndex = 0;
+  final List<PlantTheme> _themes = [
+    PlantTheme(
+      name: "Quiet Night",
+      color: const Color(0xFF1A1C19),
+      soundPath: "sounds/ambient.mp3",
+      icon: Icons.nightlight_round,
+    ),
+    PlantTheme(
+      name: "Rainy Day",
+      color: const Color(0xFF263238), // Dark Blue Grey
+      soundPath: "sounds/rain.mp3",
+      icon: Icons.water_drop,
+    ),
+    PlantTheme(
+      name: "Sunny Morning",
+      color: const Color(0xFFF57F17), // Darker Orange for contrast
+      soundPath: "sounds/sunny.mp3",
+      icon: Icons.wb_sunny,
+    ),
+    PlantTheme(
+      name: "Ocean Breeze",
+      color: const Color(0xFF006064), // Cyan 900
+      soundPath: "sounds/beach.mp3",
+      icon: Icons.waves,
+    ),
+  ];
 
   final List<String> _quotes = [
     "Small steps every day lead to big changes.",
@@ -97,13 +140,8 @@ class _PlantTimerPageState extends State<PlantTimerPage>
       _milestone25 = _milestone50 = _milestone75 = _milestone100 = false;
     });
 
-    // Start ambient music
-    _audioPlayer.setReleaseMode(ReleaseMode.loop);
-    try {
-      _audioPlayer.play(AssetSource('sounds/ambient.mp3'));
-    } catch (e) {
-      debugPrint("Error playing audio: $e");
-    }
+    // Start ambient music based on current theme
+    _playThemeSound();
 
     _growthController.duration = Duration(seconds: duration);
     _growthController.forward(from: 0);
@@ -149,9 +187,27 @@ class _PlantTimerPageState extends State<PlantTimerPage>
           _hours = 0;
           _minutes = 0;
           _seconds = 0;
+          _growthController.reset();
+          // Reset milestone flags
+          _milestone25 = false;
+          _milestone50 = false;
+          _milestone75 = false;
+          _milestone100 = false;
+          _motivationalMessage = "";
         });
       }
     });
+  }
+
+  void _playThemeSound() async {
+    _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    try {
+      await _audioPlayer.stop(); // Stop any current sound
+      await _audioPlayer
+          .play(AssetSource(_themes[_currentThemeIndex].soundPath));
+    } catch (e) {
+      debugPrint("Error playing audio: $e");
+    }
   }
 
   void _setQuote(String prefix) {
@@ -171,16 +227,118 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     return "${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}";
   }
 
+  void _showThemePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Choose Atmosphere",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 120,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _themes.length,
+                  itemBuilder: (context, index) {
+                    final theme = _themes[index];
+                    final isSelected = index == _currentThemeIndex;
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _currentThemeIndex = index;
+                        });
+                        if (_isRunning) {
+                          _playThemeSound();
+                        }
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        width: 100,
+                        margin: const EdgeInsets.only(right: 15),
+                        decoration: BoxDecoration(
+                          color: theme.color,
+                          borderRadius: BorderRadius.circular(15),
+                          border: isSelected
+                              ? Border.all(color: Colors.white, width: 3)
+                              : null,
+                          boxShadow: [
+                            if (isSelected)
+                              BoxShadow(
+                                color: theme.color.withOpacity(0.6),
+                                blurRadius: 10,
+                                spreadRadius: 2,
+                              ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(theme.icon, color: Colors.white, size: 30),
+                            const SizedBox(height: 10),
+                            Text(
+                              theme.name,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1C19),
+      backgroundColor: _themes[_currentThemeIndex].color,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.style, color: Colors.white),
+            tooltip: 'Change Theme',
+            onPressed: _showThemePicker,
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           SafeArea(
             child: Column(
               children: [
-                const SizedBox(height: 20),
+                const SizedBox(height: 10),
                 Text(
                   _isRunning ? "Focus & Grow" : "Set Timer",
                   style: const TextStyle(color: Colors.white, fontSize: 24),
@@ -248,10 +406,10 @@ class _PlantTimerPageState extends State<PlantTimerPage>
                 // Bottom Control Panel
                 Container(
                   padding: const EdgeInsets.all(24),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF232522),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.3), // Transparent panel
                     borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(30)),
+                        const BorderRadius.vertical(top: Radius.circular(30)),
                   ),
                   child: Column(
                     children: [
@@ -328,6 +486,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
   }
 
   void _stopTimer() {
+    _audioPlayer.stop(); // Stop audio when manually stopped
     _timerController?.stop();
     _growthController.stop();
     setState(() {
