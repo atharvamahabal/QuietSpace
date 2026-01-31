@@ -1,1 +1,240 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuietSpace - Grow Calm Moments</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1A1C19;
+            --accent-color: #4CAF50;
+            --text-color: #ffffff;
+            --secondary-text: #a0a0a0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--primary-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        header {
+            padding: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .logo img {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+        }
+
+        /* Hero Section */
+        .hero {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 80px 0;
+            flex-wrap: wrap;
+        }
+
+        .hero-content {
+            flex: 1;
+            min-width: 300px;
+            padding-right: 40px;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: var(--secondary-text);
+            margin-bottom: 40px;
+        }
+
+        .download-btn {
+            display: inline-block;
+            background-color: var(--accent-color);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .hero-image {
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .hero-image img {
+            max-width: 300px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            border: 4px solid #333;
+        }
+
+        /* Features */
+        .features {
+            padding: 80px 0;
+            background-color: rgba(255,255,255,0.05);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+            margin-top: 40px;
+        }
+
+        .feature-card {
+            padding: 30px;
+            background-color: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            color: var(--accent-color);
+            margin-bottom: 20px;
+        }
+
+        /* Privacy Policy */
+        .privacy {
+            padding: 80px 0;
+            color: var(--secondary-text);
+        }
+
+        .privacy h2 {
+            color: var(--text-color);
+            margin-bottom: 30px;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            text-align: center;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            color: var(--secondary-text);
+        }
+
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.5rem;
+            }
+            .hero {
+                flex-direction: column-reverse;
+                text-align: center;
+            }
+            .hero-content {
+                padding-right: 0;
+                margin-top: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <img src="assets/icon.png" alt="QuietSpace Logo">
+                <span>QuietSpace</span>
+            </div>
+        </header>
+
+        <section class="hero">
+            <div class="hero-content">
+                <h1 class="hero-title">Grow Calm Moments</h1>
+                <p class="hero-subtitle">Master your time with breathing exercises and a gamified plant-growing timer. Breathe to relax, focus to grow.</p>
+                <a href="#" class="download-btn"><i class="fab fa-google-play"></i> Coming Soon to Play Store</a>
+            </div>
+            <div class="hero-image">
+                <img src="assets/screenshot_home.png" alt="App Screenshot">
+            </div>
+        </section>
+    </div>
+
+    <section class="features">
+        <div class="container">
+            <h2 style="text-align: center; font-size: 2.5rem;">Why QuietSpace?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <i class="fas fa-seedling feature-icon"></i>
+                    <h3>Focus Garden</h3>
+                    <p>Watch beautiful flowers grow as you focus. Sunflowers for seconds, Roses for minutes, and Lotus for hours.</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-wind feature-icon"></i>
+                    <h3>Breathe & Relax</h3>
+                    <p>Guided breathing exercises with customizable pace and soothing visual guides to help you de-stress.</p>
+                </div>
+                <div class="feature-card">
+                    <i class="fas fa-shield-alt feature-icon"></i>
+                    <h3>Privacy First</h3>
+                    <p>No account required. No data collection. Your peace of mind is our priority.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="privacy" id="privacy">
+        <div class="container">
+            <h2>Privacy Policy</h2>
+            <p><strong>Last Updated: 2026-01-30</strong></p>
+            <p>This Privacy Policy describes how QuietSpace handles your information.</p>
+            
+            <h3>1. Information Collection</h3>
+            <p>We do not collect, store, or share any personal information. The App functions entirely locally on your device.</p>
+            
+            <h3>2. Third-Party Services</h3>
+            <p>The App uses Google Fonts which may collect your IP address to serve fonts.</p>
+            
+            <h3>3. Permissions</h3>
+            <p>Internet Access is required only to download font assets.</p>
+            
+            <h3>4. Contact</h3>
+            <p>For support, please contact us at: [Your Support Email]</p>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 QuietSpace. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>
