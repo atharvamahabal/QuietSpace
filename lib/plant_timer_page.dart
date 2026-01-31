@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 enum FlowerType { sunflower, rose, lotus }
 
@@ -18,6 +19,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
 
   AnimationController? _timerController;
   late ConfettiController _confettiController;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   int _hours = 0;
   int _minutes = 0;
@@ -79,6 +81,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     _growthController.dispose();
     _timerController?.dispose();
     _confettiController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -93,6 +96,14 @@ class _PlantTimerPageState extends State<PlantTimerPage>
       _motivationalMessage = "Focus & breathe…";
       _milestone25 = _milestone50 = _milestone75 = _milestone100 = false;
     });
+
+    // Start ambient music
+    _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    try {
+      _audioPlayer.play(AssetSource('sounds/ambient.mp3'));
+    } catch (e) {
+      debugPrint("Error playing audio: $e");
+    }
 
     _growthController.duration = Duration(seconds: duration);
     _growthController.forward(from: 0);
@@ -131,6 +142,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
 
     _timerController!.addStatusListener((status) {
       if (status == AnimationStatus.dismissed) {
+        _audioPlayer.stop(); // Stop audio when timer finishes
         setState(() {
           _isRunning = false;
           _currentSeconds = 0;
@@ -277,10 +289,10 @@ class _PlantTimerPageState extends State<PlantTimerPage>
                           backgroundColor:
                               _isRunning ? Colors.red : Colors.green,
                           shape: const CircleBorder(),
-                          padding: const EdgeInsets.all(22),
+                          padding: const EdgeInsets.all(16),
                         ),
                         child: Icon(_isRunning ? Icons.stop : Icons.play_arrow,
-                            size: 40, color: Colors.white),
+                            size: 32, color: Colors.white),
                       ),
                     ],
                   ),
@@ -439,7 +451,7 @@ class PlantPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final centerX = size.width / 2;
     final bottomY = size.height - 30;
-    final stemHeight = 220 * growth;
+    final stemHeight = 160 * growth;
 
     // Calculate the actual start of the plant stem (top of pot/soil)
     // Pot height is 70, so top is bottomY - 70. Soil is slightly curved above that.

@@ -11,6 +11,7 @@ dependencies:
     sdk: flutter
   google_fonts: ^6.1.0
   confetti: ^0.7.0
+  audioplayers: ^6.0.0
   http: ^1.6.0
   # For state management, we'll use ValueNotifier/ChangeNotifier as it's built-in and sufficient.
   # If more complex state is needed, provider/riverpod can be added.
@@ -36,3 +37,5 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/sounds/
