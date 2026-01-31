@@ -1,0 +1,38 @@
+name: quietspace
+description: QuietSpace – Grow Calm Moments.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_fonts: ^6.1.0
+  confetti: ^0.7.0
+  http: ^1.6.0
+  # For state management, we'll use ValueNotifier/ChangeNotifier as it's built-in and sufficient.
+  # If more complex state is needed, provider/riverpod can be added.
+  
+dev_dependencies:
+  integration_test:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.14.4
+
+dependency_overrides:
+  path_provider_foundation: 2.3.0
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icon.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
+  adaptive_icon_background: "#1A1C19"
+  adaptive_icon_foreground: "assets/icon.png"
+
+flutter:
+  uses-material-design: true
