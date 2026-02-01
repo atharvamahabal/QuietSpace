@@ -13,6 +13,9 @@ dependencies:
   confetti: ^0.7.0
   audioplayers: ^6.0.0
   http: ^1.6.0
+  url_launcher: ^6.3.2
+  shared_preferences: ^2.5.4
+  firebase_core: ^4.4.0
   # For state management, we'll use ValueNotifier/ChangeNotifier as it's built-in and sufficient.
   # If more complex state is needed, provider/riverpod can be added.
   

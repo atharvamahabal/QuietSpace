@@ -1,8 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dashboard_page.dart';
+import 'auth_service.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  Future<void> _launchUrl(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      throw Exception('Could not launch $url');
+    }
+  }
+
+  Future<void> _handleLogin() async {
+    // Simulate a network delay for realism
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    await Future.delayed(const Duration(seconds: 1));
+    await AuthService.login();
+
+    if (mounted) {
+      Navigator.pop(context); // Dismiss loading
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardPage()),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,14 +111,7 @@ class LoginPage extends StatelessWidget {
                     width: double.infinity,
                     height: 55,
                     child: ElevatedButton(
-                      onPressed: () {
-                        // Navigate to Dashboard
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const DashboardPage()),
-                        );
-                      },
+                      onPressed: _handleLogin,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(
                             0xFF00BFA5), // Teal/Green color from screenshot
@@ -102,40 +129,42 @@ class LoginPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 30),
-
-                  // Divider "or continue with"
-                  Row(
-                    children: [
-                      Expanded(child: Divider(color: Colors.white24)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          "or continue with",
-                          style: TextStyle(color: Colors.white60),
-                        ),
-                      ),
-                      Expanded(child: Divider(color: Colors.white24)),
-                    ],
+                  
+                  const SizedBox(height: 40),
+                  const Center(
+                    child: Text(
+                      "Or continue with",
+                      style: TextStyle(color: Colors.white54, fontSize: 14),
+                    ),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 20),
 
-                  // Social Login Buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildSocialButton(Icons.facebook, Colors.blue),
-                      const SizedBox(width: 20),
-                      _buildSocialButton(Icons.apple, Colors.white),
-                      const SizedBox(width: 20),
-                      _buildSocialButton(Icons.g_mobiledata,
-                          Colors.red), // Using Google icon proxy
-                    ],
+                  _buildSocialButton(
+                    label: "Google",
+                    color: Colors.white,
+                    textColor: Colors.black,
+                    icon: Icons.g_mobiledata, // Placeholder for Google icon
+                    onTap: _handleLogin,
                   ),
-
-                  const SizedBox(height: 100), // Spacing
-
-                  // Footer Links
+                  const SizedBox(height: 15),
+                  _buildSocialButton(
+                    label: "Facebook",
+                    color: const Color(0xFF1877F2),
+                    textColor: Colors.white,
+                    icon: Icons.facebook,
+                    onTap: _handleLogin,
+                  ),
+                  const SizedBox(height: 15),
+                  _buildSocialButton(
+                    label: "Twitter",
+                    color: const Color(0xFF1DA1F2),
+                    textColor: Colors.white,
+                    icon: Icons.alternate_email, // Placeholder for Twitter/X icon
+                    onTap: _handleLogin,
+                  ),
+                  
+                  const SizedBox(height: 40),
+                  // Sign Up / Forgot Password
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -155,7 +184,6 @@ class LoginPage extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -165,16 +193,35 @@ class LoginPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSocialButton(IconData icon, Color color) {
-    return Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white24),
+  Widget _buildSocialButton({
+    required String label,
+    required Color color,
+    required Color textColor,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: ElevatedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, color: textColor),
+        label: Text(
+          "Continue with $label",
+          style: TextStyle(
+            color: textColor,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          elevation: 0,
+        ),
       ),
-      child: Icon(icon, color: color, size: 30),
     );
   }
 }

@@ -2,6 +2,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'progress_service.dart';
 
 enum FlowerType { sunflower, rose, lotus }
 
@@ -30,6 +32,9 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     with TickerProviderStateMixin {
   late AnimationController _growthController;
   late Animation<double> _growth;
+  late AnimationController _rainController;
+  late AnimationController _backgroundController;
+  late AnimationController _seedFallController;
 
   AnimationController? _timerController;
   late ConfettiController _confettiController;
@@ -41,6 +46,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
   int _totalSeconds = 0;
   int _currentSeconds = 0;
   bool _isRunning = false;
+  bool _isSeeding = false;
 
   String _motivationalMessage = "";
   String _lastQuote = "";
@@ -56,7 +62,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     PlantTheme(
       name: "Quiet Night",
       color: const Color(0xFF1A1C19),
-      soundPath: "sounds/ambient.mp3",
+      soundPath: "sounds/night.mp3",
       icon: Icons.nightlight_round,
     ),
     PlantTheme(
@@ -117,13 +123,135 @@ class _PlantTimerPageState extends State<PlantTimerPage>
 
     _confettiController =
         ConfettiController(duration: const Duration(seconds: 3));
+
+    _rainController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 2))
+          ..repeat();
+
+    _backgroundController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 10))
+          ..repeat();
+
+    _seedFallController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1500));
+
+    _checkFirstRun();
+  }
+
+  void _checkFirstRun() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasShown = prefs.getBool('hasShownOnboarding') ?? false;
+
+    if (!hasShown && mounted) {
+      // Delay slightly to let the UI build
+      Future.delayed(const Duration(seconds: 1), () {
+        if (!mounted) return;
+        _showOnboardingTooltip();
+        prefs.setBool('hasShownOnboarding', true);
+      });
+    }
+  }
+
+  void _showOnboardingTooltip() {
+    OverlayEntry? entry;
+
+    entry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Invisible dismiss layer
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () {
+                entry?.remove();
+              },
+              behavior: HitTestBehavior.translucent,
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          Positioned(
+            top: MediaQuery.of(context).padding.top + kToolbarHeight - 10,
+            right: 10,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                width: 200,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    // Arrow pointing up
+                    const Icon(Icons.arrow_upward,
+                        size: 20, color: Colors.black),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Change View",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "🔊 Volume Up for Sound Effects",
+                      textAlign: TextAlign.right,
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    GestureDetector(
+                      onTap: () {
+                        entry?.remove();
+                      },
+                      child: const Text(
+                        "Got it!",
+                        style: TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    Overlay.of(context).insert(entry);
+
+    // Auto dismiss after 6 seconds
+    Future.delayed(const Duration(seconds: 6), () {
+      if (entry != null && entry.mounted) {
+        entry.remove();
+      }
+    });
   }
 
   @override
   void dispose() {
     _growthController.dispose();
     _timerController?.dispose();
+    _rainController.dispose();
+    _backgroundController.dispose();
     _confettiController.dispose();
+    _seedFallController.dispose();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -132,6 +260,20 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     final duration = (_hours * 3600) + (_minutes * 60) + _seconds;
     if (duration == 0) return;
 
+    // Trigger Seed Animation
+    setState(() {
+      _isSeeding = true;
+    });
+
+    _seedFallController.forward(from: 0).then((_) {
+      setState(() {
+        _isSeeding = false;
+        _startGrowthCycle(duration);
+      });
+    });
+  }
+
+  void _startGrowthCycle(int duration) {
     setState(() {
       _totalSeconds = duration;
       _currentSeconds = duration;
@@ -181,19 +323,29 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     _timerController!.addStatusListener((status) {
       if (status == AnimationStatus.dismissed) {
         _audioPlayer.stop(); // Stop audio when timer finishes
+
+        // Save progress
+        ProgressService.saveSession(_totalSeconds);
+
         setState(() {
           _isRunning = false;
           _currentSeconds = 0;
-          _hours = 0;
-          _minutes = 0;
-          _seconds = 0;
-          _growthController.reset();
+          // Keep the flower and time settings visible after completion
+          // _hours = 0;
+          // _minutes = 0;
+          // _seconds = 0;
+
+          // Ensure flower stays fully grown
+          _growthController.stop();
+          _growthController.value = 1.0;
+          // _growthController.reset(); // COMMENTED OUT TO PREVENT DISAPPEARING
+
           // Reset milestone flags
           _milestone25 = false;
           _milestone50 = false;
           _milestone75 = false;
           _milestone100 = false;
-          _motivationalMessage = "";
+          // _motivationalMessage = ""; // Keep the final quote visible
         });
       }
     });
@@ -316,173 +468,277 @@ class _PlantTimerPageState extends State<PlantTimerPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _themes[_currentThemeIndex].color,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.style, color: Colors.white),
-            tooltip: 'Change Theme',
-            onPressed: _showThemePicker,
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        backgroundColor: _themes[_currentThemeIndex].color,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.maybePop(context),
           ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 10),
-                Text(
-                  _isRunning ? "Focus & Grow" : "Set Timer",
-                  style: const TextStyle(color: Colors.white, fontSize: 24),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.style, color: Colors.white),
+              tooltip: 'Change Theme',
+              onPressed: _showThemePicker,
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            // Moon Animation (Quiet Night)
+            if (_themes[_currentThemeIndex].name == "Quiet Night")
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: MoonPainter(),
                 ),
-                Expanded(
-                  child: Stack(
-                    alignment: Alignment.bottomCenter,
-                    children: [
-                      // Motivational Message
-                      if (_motivationalMessage.isNotEmpty)
-                        Positioned(
-                          top: 20,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: MediaQuery.of(context).size.width - 40,
-                              maxHeight: 120,
-                            ),
-                            child: SingleChildScrollView(
-                              child: Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: Colors.black54,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Text(
-                                  _motivationalMessage,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    height: 1.4,
+              ),
+
+            // Background Animation (Sun or Beach)
+            if (_themes[_currentThemeIndex].name == "Sunny Morning")
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _backgroundController,
+                  builder: (context, child) {
+                    return CustomPaint(
+                      painter: SunPainter(
+                        animationValue: _backgroundController.value,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            if (_themes[_currentThemeIndex].name == "Ocean Breeze")
+              Positioned.fill(
+                child: AnimatedBuilder(
+                  animation: _backgroundController,
+                  builder: (context, child) {
+                    return CustomPaint(
+                      painter: BeachPainter(
+                        animationValue: _backgroundController.value,
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+            // Rain Animation (only for Rainy Day theme)
+            if (_themes[_currentThemeIndex].name == "Rainy Day")
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: _rainController,
+                    builder: (context, child) {
+                      return CustomPaint(
+                        painter: RainPainter(
+                          animationValue: _rainController.value,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+
+            SafeArea(
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Text(
+                    _isRunning ? "Focus & Grow" : "Set Timer",
+                    style: const TextStyle(color: Colors.white, fontSize: 24),
+                  ),
+                  Expanded(
+                    child: Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        // Motivational Message
+                        if (_motivationalMessage.isNotEmpty)
+                          Positioned(
+                            top: 20,
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth:
+                                    MediaQuery.of(context).size.width - 40,
+                                maxHeight: 120,
+                              ),
+                              child: SingleChildScrollView(
+                                child: Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: Text(
+                                    _motivationalMessage,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      height: 1.4,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
 
-                      // Plant Animation
-                      // Use LayoutBuilder to ensure painter gets correct size
-                      LayoutBuilder(builder: (context, constraints) {
-                        return Container(
-                          width: constraints.maxWidth,
-                          height: constraints.maxHeight,
-                          alignment: Alignment.bottomCenter,
-                          child: AnimatedBuilder(
-                            animation: _growth,
-                            builder: (_, __) {
-                              return CustomPaint(
-                                // Use the full available size
-                                size: Size(constraints.maxWidth,
-                                    constraints.maxHeight),
-                                painter: PlantPainter(
-                                  growth: _growth.value,
-                                  type: _flowerType,
-                                ),
-                              );
-                            },
+                        // Plant Animation
+                        // Use LayoutBuilder to ensure painter gets correct size
+                        LayoutBuilder(builder: (context, constraints) {
+                          return Container(
+                            width: constraints.maxWidth,
+                            height: constraints.maxHeight,
+                            alignment: Alignment.bottomCenter,
+                            child: AnimatedBuilder(
+                              animation: _growth,
+                              builder: (_, __) {
+                                return CustomPaint(
+                                  // Use the full available size
+                                  size: Size(constraints.maxWidth,
+                                      constraints.maxHeight),
+                                  painter: PlantPainter(
+                                    growth: _growth.value,
+                                    type: _flowerType,
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        }),
+
+                        // Falling Seed Animation
+                        if (_isSeeding)
+                          Positioned.fill(
+                            child: AnimatedBuilder(
+                              animation: _seedFallController,
+                              builder: (context, child) {
+                                return CustomPaint(
+                                  painter: SeedPainter(
+                                      progress: _seedFallController.value),
+                                );
+                              },
+                            ),
                           ),
-                        );
-                      }),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
-                // Bottom Control Panel
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3), // Transparent panel
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(30)),
-                  ),
-                  child: Column(
-                    children: [
-                      if (_isRunning)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildTimerItem(
-                                _formatTimePart(_currentSeconds, 0), "HH"),
-                            const Text(":",
-                                style: TextStyle(
-                                    color: Colors.white, fontSize: 42)),
-                            _buildTimerItem(
-                                _formatTimePart(_currentSeconds, 1), "MM"),
-                            const Text(":",
-                                style: TextStyle(
-                                    color: Colors.white, fontSize: 42)),
-                            _buildTimerItem(
-                                _formatTimePart(_currentSeconds, 2), "SS"),
-                          ],
-                        )
-                      else
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _timePicker("Hr", _hours, (v) => _hours = v),
-                            _timePicker("Min", _minutes, (v) => _minutes = v),
-                            _timePicker("Sec", _seconds, (v) => _seconds = v),
-                          ],
-                        ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: _isRunning ? _stopTimer : _startTimer,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _isRunning ? Colors.red : Colors.green,
-                          shape: const CircleBorder(),
-                          padding: const EdgeInsets.all(16),
-                        ),
-                        child: Icon(_isRunning ? Icons.stop : Icons.play_arrow,
-                            size: 32, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+                  // Bottom Control Panel
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.3), // Transparent panel
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(30)),
+                    ),
+                    child: Column(
+                      children: [
+                        if (_isRunning)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildTimerItem(
+                                  _formatTimePart(_currentSeconds, 0), "HH"),
+                              const Text(":",
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 42)),
+                              _buildTimerItem(
+                                  _formatTimePart(_currentSeconds, 1), "MM"),
+                              const Text(":",
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 42)),
+                              _buildTimerItem(
+                                  _formatTimePart(_currentSeconds, 2), "SS"),
+                            ],
+                          )
+                        else
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _timePicker("HOURS", _hours, (val) {
+                                setState(() => _hours = val);
+                              }),
+                              _timePicker("MINUTES", _minutes, (val) {
+                                setState(() => _minutes = val);
+                              }),
+                              _timePicker("SECONDS", _seconds, (val) {
+                                setState(() => _seconds = val);
+                              }),
+                            ],
+                          ),
+                        const SizedBox(height: 30),
 
-          // Confetti Overlay - Top Level Stack
-          Align(
-            alignment: Alignment.topCenter,
-            child: ConfettiWidget(
-              confettiController: _confettiController,
-              blastDirection: pi / 2, // Down
-              maxBlastForce: 5,
-              minBlastForce: 2,
-              emissionFrequency: 0.05,
-              numberOfParticles: 20,
-              gravity: 0.1,
-              shouldLoop: false,
-              colors: const [
-                Colors.green,
-                Colors.pink,
-                Colors.orange,
-                Colors.blue,
-                Colors.yellow,
-              ],
+                        // Start/Stop Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 55,
+                          child: ElevatedButton(
+                            onPressed: _isRunning ? _stopTimer : _startTimer,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _isRunning
+                                  ? Colors.redAccent
+                                  : Colors.greenAccent[700],
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              elevation: 5,
+                            ),
+                            child: Text(
+                              _isRunning ? "Give Up" : "Plant Seed",
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  Future<bool> _onWillPop() async {
+    if (_isRunning) {
+      final shouldPop = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text("Stop Growing?"),
+            content: const Text(
+                "Leaving now will cancel your session and the plant will stop growing."),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text("Stay"),
+              ),
+              TextButton(
+                onPressed: () {
+                  _stopTimer();
+                  Navigator.of(context).pop(true);
+                },
+                child: const Text("Leave", style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          );
+        },
+      );
+      if (shouldPop == true) {
+        return true;
+      }
+    } else {
+      return true;
+    }
+    return false;
   }
 
   void _stopTimer() {
@@ -1094,4 +1350,261 @@ class PlantPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant PlantPainter oldDelegate) =>
       oldDelegate.growth != growth || oldDelegate.type != type;
+}
+
+class RainPainter extends CustomPainter {
+  final double animationValue;
+  final Random _random = Random(42); // Fixed seed for consistent patterns
+
+  RainPainter({required this.animationValue});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.3)
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round;
+
+    // Draw multiple layers of rain for depth
+    _drawRainLayer(canvas, size, paint, count: 80, speedMultiplier: 1.0);
+    _drawRainLayer(canvas, size, paint, count: 40, speedMultiplier: 2.0);
+  }
+
+  void _drawRainLayer(Canvas canvas, Size size, Paint paint,
+      {required int count, required double speedMultiplier}) {
+    var r = Random(42 + count); // Different seed for different layers
+
+    for (int i = 0; i < count; i++) {
+      double startX = r.nextDouble() * size.width;
+      double startY = r.nextDouble() * size.height;
+      double length = 10 + r.nextDouble() * 20;
+
+      // Calculate Y position based on animation loop
+      double fallDistance = size.height + length;
+      double y = (startY + (animationValue * speedMultiplier * fallDistance)) %
+          fallDistance;
+
+      // To make it look continuous:
+      y = y - length; // Shift up so 0 is -length (just entering)
+
+      canvas.drawLine(Offset(startX, y), Offset(startX, y + length), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant RainPainter oldDelegate) =>
+      oldDelegate.animationValue != animationValue;
+}
+
+class SunPainter extends CustomPainter {
+  final double animationValue;
+
+  SunPainter({required this.animationValue});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Sun position: Top Left
+    final center = Offset(size.width * 0.15, size.height * 0.15);
+    final radius = 40.0;
+
+    final paint = Paint()
+      ..color = const Color(0xFFFFD54F) // Amber 300
+      ..style = PaintingStyle.fill;
+
+    // Draw Sun Body
+    canvas.drawCircle(center, radius, paint);
+
+    // Draw Rays
+    final rayPaint = Paint()
+      ..color = const Color(0xFFFFCA28).withOpacity(0.6)
+      ..strokeWidth = 4.0
+      ..style = PaintingStyle.stroke;
+
+    final rayCount = 12;
+    final rayLength = 20.0;
+    final rotationOffset = animationValue * 2 * pi;
+
+    for (int i = 0; i < rayCount; i++) {
+      final angle = (i * 2 * pi / rayCount) + rotationOffset;
+      final start = center + Offset(cos(angle), sin(angle)) * (radius + 5);
+      final end =
+          center + Offset(cos(angle), sin(angle)) * (radius + 5 + rayLength);
+      canvas.drawLine(start, end, rayPaint);
+    }
+
+    // Glow
+    final glowPaint = Paint()
+      ..color = const Color(0xFFFFAB00).withOpacity(0.2)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
+
+    canvas.drawCircle(center, radius + 10, glowPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant SunPainter oldDelegate) =>
+      oldDelegate.animationValue != animationValue;
+}
+
+class BeachPainter extends CustomPainter {
+  final double animationValue;
+
+  BeachPainter({required this.animationValue});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 1. Draw Sand (Bottom 25%)
+    final sandHeight = size.height * 0.25;
+    final sandY = size.height - sandHeight;
+
+    final sandPaint = Paint()
+      ..color = const Color(0xFFE6BF83); // Yellowish brown sand color
+
+    canvas.drawRect(
+      Rect.fromLTWH(0, sandY, size.width, sandHeight),
+      sandPaint,
+    );
+
+    // 2. Draw Waves
+    // We want waves coming "to" the beach.
+    // From perspective, this usually means horizontal lines moving down or just stylized curves.
+    // Let's draw stylized waves moving horizontally behind the sand line (simulating water hitting sand).
+    // Actually, let's make the water occupy the area ABOVE the sand, up to horizon.
+
+    final horizonY = size.height * 0.5;
+
+    // Draw Water (Between horizon and sand)
+    final waterPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF006064), Color(0xFF00838F)],
+      ).createShader(Rect.fromLTWH(0, horizonY, size.width, sandY - horizonY));
+
+    canvas.drawRect(
+      Rect.fromLTWH(0, horizonY, size.width, sandY - horizonY),
+      waterPaint,
+    );
+
+    // Draw moving wave lines on the water
+    final wavePaint = Paint()
+      ..color = Colors.white.withOpacity(0.3)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
+    // Create 3 wave lines moving towards the sand (downwards)
+    for (int i = 0; i < 3; i++) {
+      double offset = (animationValue + i * 0.33) % 1.0;
+      double waveY = horizonY + (sandY - horizonY) * offset;
+
+      // Draw a sine wave horizontally at this Y
+      Path wavePath = Path();
+      wavePath.moveTo(0, waveY);
+
+      for (double x = 0; x <= size.width; x += 10) {
+        wavePath.lineTo(
+            x, waveY + sin((x / 50) + (animationValue * 2 * pi)) * 5);
+      }
+
+      // Fade out as it approaches sand
+      double opacity = 1.0 - offset; // Fade out near sand? Or fade IN?
+      // Usually waves break at shore (sandY).
+      // Let's fade in as they approach sand, then fade out quickly.
+      if (offset > 0.8) opacity = (1.0 - offset) * 5;
+
+      wavePaint.color = Colors.white.withOpacity(0.3 * opacity);
+      canvas.drawPath(wavePath, wavePaint);
+    }
+
+    // Draw "foam" at the sand line
+    final foamPaint = Paint()
+      ..color =
+          Colors.white.withOpacity(0.4 + 0.2 * sin(animationValue * 2 * pi))
+      ..style = PaintingStyle.fill;
+
+    // Irregular foam edge
+    Path foamPath = Path();
+    foamPath.moveTo(0, sandY);
+    for (double x = 0; x <= size.width; x += 20) {
+      foamPath.quadraticBezierTo(x + 10,
+          sandY - 5 + sin(animationValue * 2 * pi + x) * 3, x + 20, sandY);
+    }
+    foamPath.lineTo(
+        size.width, size.height); // Cover bottom to be safe? No, just a strip
+    foamPath.lineTo(0, size.height);
+    foamPath.close();
+
+    // Just a thin strip
+    canvas.drawPath(foamPath, foamPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant BeachPainter oldDelegate) =>
+      oldDelegate.animationValue != animationValue;
+}
+
+class MoonPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Moon position: Top Right
+    final center = Offset(size.width * 0.8, size.height * 0.15);
+    final radius = 35.0;
+
+    // Glow
+    final glowPaint = Paint()
+      ..color = Colors.white.withOpacity(0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 25);
+    canvas.drawCircle(center, radius + 15, glowPaint);
+
+    // Moon Body
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius, paint);
+
+    // Subtle craters (optional details for "full moon" look)
+    final craterPaint = Paint()
+      ..color = Colors.grey.withOpacity(0.2)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(center + const Offset(-10, -5), 8, craterPaint);
+    canvas.drawCircle(center + const Offset(12, 8), 6, craterPaint);
+    canvas.drawCircle(center + const Offset(5, -12), 4, craterPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class SeedPainter extends CustomPainter {
+  final double progress; // 0.0 to 1.0
+
+  SeedPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Start from top center, fall to bottom center (where the pot is)
+    // Adjust targetY to match the pot location in PlantPainter
+    // PlantPainter draws pot at (size.width / 2, size.height - 40)
+
+    double startY = -50;
+    double endY = size.height - 40;
+
+    double currentY = startY + (endY - startY) * progress;
+    double currentX = size.width / 2;
+
+    Paint paint = Paint()
+      ..color = const Color(0xFF8D6E63) // Brown seed
+      ..style = PaintingStyle.fill;
+
+    // Draw seed (oval shape)
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(currentX, currentY), width: 10, height: 15),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant SeedPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

@@ -12,6 +12,7 @@ class _BreathingPageState extends State<BreathingPage>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _sizeAnimation;
+  late FixedExtentScrollController _scrollController;
   Timer? _timer;
   double _durationSeconds = 5.0;
   int _countdown = 5;
@@ -31,6 +32,9 @@ class _BreathingPageState extends State<BreathingPage>
       duration: Duration(milliseconds: (_durationSeconds * 1000).toInt()),
     );
 
+    // Initialize scroll controller to default 5 seconds (index 3: 3 + 2 = 5)
+    _scrollController = FixedExtentScrollController(initialItem: 3);
+
     // Linear animation from 0.0 to 1.0 mapping to minSize to maxSize
     _sizeAnimation = Tween<double>(
       begin: _minSize,
@@ -42,10 +46,11 @@ class _BreathingPageState extends State<BreathingPage>
   void dispose() {
     _timer?.cancel();
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  void _startTimer() {
+  void _startTimer({VoidCallback? onDone}) {
     _timer?.cancel();
     setState(() {
       _countdown = _durationSeconds.toInt();
@@ -56,6 +61,7 @@ class _BreathingPageState extends State<BreathingPage>
           _countdown--;
         } else {
           timer.cancel();
+          onDone?.call();
         }
       });
     });
@@ -70,19 +76,41 @@ class _BreathingPageState extends State<BreathingPage>
       milliseconds: (_durationSeconds * 1000).toInt(),
     );
     _controller.forward();
-    _startTimer();
+    _startTimer(onDone: () {
+      setState(() {
+        _instruction = 'Release';
+      });
+    });
   }
 
   void _startShrinking() {
     setState(() {
       _instruction = 'Breathe Out';
     });
-    // Return to normal over selected duration
-    _controller.reverseDuration = Duration(
-      milliseconds: (_durationSeconds * 1000).toInt(),
-    );
+    
+    // Calculate adjusted duration to ensure shrinking takes exactly _durationSeconds
+    // regardless of current size.
+    // reverse() duration = reverseDuration * value.
+    // We want reverse() duration = _durationSeconds.
+    // So: _durationSeconds = reverseDuration * value
+    // reverseDuration = _durationSeconds / value
+    
+    double currentValue = _controller.value;
+    int adjustedMilliseconds;
+    
+    if (currentValue > 0) {
+      adjustedMilliseconds = ((_durationSeconds * 1000) / currentValue).toInt();
+    } else {
+      adjustedMilliseconds = (_durationSeconds * 1000).toInt();
+    }
+
+    _controller.reverseDuration = Duration(milliseconds: adjustedMilliseconds);
     _controller.reverse();
-    _startTimer();
+    _startTimer(onDone: () {
+      setState(() {
+        _instruction = 'Tap and Breathe';
+      });
+    });
   }
 
   @override
@@ -190,6 +218,7 @@ class _BreathingPageState extends State<BreathingPage>
                       ),
                       // Wheel Selector
                       ListWheelScrollView.useDelegate(
+                        controller: _scrollController,
                         itemExtent: 50,
                         perspective: 0.005,
                         diameterRatio: 1.2,

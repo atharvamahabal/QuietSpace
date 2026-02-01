@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'breathing_page.dart';
 import 'plant_timer_page.dart';
+import 'progress_page.dart';
+import 'auth_service.dart';
+import 'login_page.dart';
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({super.key});
@@ -13,40 +16,74 @@ class DashboardPage extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false, // Don't show back button to login
-        title: const Text("Choose Your Path", style: TextStyle(color: Colors.white)),
+        title: const Text("Choose Your Path",
+            style: TextStyle(color: Colors.white)),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () async {
+              await AuthService.logout();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                  (route) => false,
+                );
+              }
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _buildOptionCard(
-              context,
-              title: "Breathe",
-              icon: Icons.air,
-              color: Colors.blueAccent,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const BreathingPage()),
-                );
-              },
-            ),
-            const SizedBox(height: 30),
-            _buildOptionCard(
-              context,
-              title: "Grow",
-              icon: Icons.local_florist,
-              color: Colors.green,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const PlantTimerPage()),
-                );
-              },
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildOptionCard(
+                context,
+                title: "Breathe",
+                icon: Icons.air,
+                color: Colors.blueAccent,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const BreathingPage()),
+                  );
+                },
+              ),
+              const SizedBox(height: 30),
+              _buildOptionCard(
+                context,
+                title: "Grow",
+                icon: Icons.local_florist,
+                color: Colors.green,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const PlantTimerPage()),
+                  );
+                },
+              ),
+              const SizedBox(height: 30),
+              _buildOptionCard(
+                context,
+                title: "Progress",
+                icon: Icons.bar_chart,
+                color: Colors.purpleAccent,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const ProgressPage()),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

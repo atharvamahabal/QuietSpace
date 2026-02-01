@@ -14,7 +14,7 @@ void main() {
   testWidgets('Loads breathing screen with initial instruction', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const QuietSpaceApp());
+    await tester.pumpWidget(const QuietSpaceApp(isLoggedIn: false));
     expect(find.text('Tap and Breathe'), findsOneWidget);
   });
 }
