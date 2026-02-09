@@ -1,0 +1,21 @@
+# GitHub Pages / Jekyll configuration
+# Exclude directories that contain source code or build artifacts to speed up builds and prevent errors
+exclude:
+  - sdk              # Flutter SDK submodule (large, not needed for docs)
+  - lib              # Dart source code
+  - android          # Android native code
+  - ios              # iOS native code
+  - windows          # Windows native code
+  - linux            # Linux native code
+  - macos            # macOS native code
+  - test             # Dart tests
+  - build            # Flutter build output
+  - .dart_tool       # Dart tooling cache
+  - .flutter-plugins-dependencies
+  - node_modules     # JS dependencies if any
+  - .git             # Git internals
+  - .github          # GitHub workflows (not needed for site)
+  - .vscode          # IDE settings
+  - integration_test # Integration tests
+  - images           # Screenshots, not needed for Jekyll site
+  - assets           # App assets, not needed for Jekyll site
