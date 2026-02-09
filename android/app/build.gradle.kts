@@ -54,6 +54,17 @@ android {
             signingConfig = signingConfigs.getByName("release")
         }
     }
+
+    applicationVariants.all {
+        outputs.all {
+            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output?.let {
+                val newName = "QuietSpace-${it.name}.apk"
+                it.outputFileName = newName
+                println("Renaming APK to $newName")
+            }
+        }
+    }
 }
 
 flutter {

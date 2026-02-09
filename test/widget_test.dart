@@ -17,4 +17,5 @@ void main() {
     await tester.pumpWidget(const QuietSpaceApp(isLoggedIn: false));
     expect(find.text('Tap and Breathe'), findsOneWidget);
   });
+
 }

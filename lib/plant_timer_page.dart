@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:confetti/confetti.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,7 +30,7 @@ class PlantTimerPage extends StatefulWidget {
 }
 
 class _PlantTimerPageState extends State<PlantTimerPage>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _growthController;
   late Animation<double> _growth;
   late AnimationController _rainController;
@@ -62,25 +63,29 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     PlantTheme(
       name: "Quiet Night",
       color: const Color(0xFF1A1C19),
-      soundPath: "sounds/night.mp3",
+      soundPath:
+          "https://raw.githubusercontent.com/atharvamahabal/QuietSpace/main/assets/sounds/night.mp3",
       icon: Icons.nightlight_round,
     ),
     PlantTheme(
       name: "Rainy Day",
       color: const Color(0xFF263238), // Dark Blue Grey
-      soundPath: "sounds/rain.mp3",
+      soundPath:
+          "https://raw.githubusercontent.com/atharvamahabal/QuietSpace/main/assets/sounds/rain.mp3",
       icon: Icons.water_drop,
     ),
     PlantTheme(
       name: "Sunny Morning",
       color: const Color(0xFFF57F17), // Darker Orange for contrast
-      soundPath: "sounds/sunny.mp3",
+      soundPath:
+          "https://raw.githubusercontent.com/atharvamahabal/QuietSpace/main/assets/sounds/sunny.mp3",
       icon: Icons.wb_sunny,
     ),
     PlantTheme(
       name: "Ocean Breeze",
       color: const Color(0xFF006064), // Cyan 900
-      soundPath: "sounds/beach.mp3",
+      soundPath:
+          "https://raw.githubusercontent.com/atharvamahabal/QuietSpace/main/assets/sounds/beach.mp3",
       icon: Icons.waves,
     ),
   ];
@@ -112,6 +117,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _growthController =
         AnimationController(vsync: this, duration: const Duration(seconds: 1));
@@ -136,6 +142,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
         vsync: this, duration: const Duration(milliseconds: 1500));
 
     _checkFirstRun();
+    _checkRunningTimer();
   }
 
   void _checkFirstRun() async {
@@ -246,6 +253,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _growthController.dispose();
     _timerController?.dispose();
     _rainController.dispose();
@@ -254,6 +262,93 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     _seedFallController.dispose();
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      if (_isRunning) {
+        _saveTimerState();
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      _checkRunningTimer();
+    }
+  }
+
+  void _saveTimerState() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_isRunning) {
+      final targetTime = DateTime.now().add(Duration(seconds: _currentSeconds));
+      prefs.setInt('target_time', targetTime.millisecondsSinceEpoch);
+      prefs.setInt('total_duration', _totalSeconds);
+      prefs.setBool('is_timer_running', true);
+      prefs.setInt('current_theme_index', _currentThemeIndex);
+    } else {
+      prefs.setBool('is_timer_running', false);
+    }
+  }
+
+  void _checkRunningTimer() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isRunning = prefs.getBool('is_timer_running') ?? false;
+
+    if (isRunning) {
+      final targetTimeMs = prefs.getInt('target_time') ?? 0;
+      final totalDuration = prefs.getInt('total_duration') ?? 0;
+      final themeIndex = prefs.getInt('current_theme_index') ?? 0;
+
+      final targetTime = DateTime.fromMillisecondsSinceEpoch(targetTimeMs);
+      final now = DateTime.now();
+
+      if (now.isBefore(targetTime)) {
+        final remaining = targetTime.difference(now).inSeconds;
+        setState(() {
+          _currentThemeIndex = themeIndex;
+          _totalSeconds = totalDuration;
+          _currentSeconds = remaining;
+          _isRunning = true;
+          _motivationalMessage = "Welcome back! Keep focusing...";
+        });
+
+        // Resume audio
+        _playThemeSound();
+
+        // Calculate progress
+        double progress = 1.0 - (remaining / totalDuration);
+
+        // Setup controllers
+        _growthController.duration = Duration(seconds: totalDuration);
+        _growthController.forward(from: progress);
+
+        _timerController?.dispose();
+        _timerController = AnimationController(
+          vsync: this,
+          duration: Duration(seconds: totalDuration),
+        );
+        _timerController!.reverse(from: 1.0 - progress);
+        _setupTimerListener();
+      } else {
+        // Timer finished
+        setState(() {
+          _isRunning = false;
+          _currentSeconds = 0;
+          _motivationalMessage = "Timer completed while you were away!";
+        });
+        prefs.setBool('is_timer_running', false);
+        _growthController.value = 1.0;
+        _milestone100 = true;
+        _confettiController.play();
+      }
+    }
+  }
+
+  Future<void> _minimizeApp() async {
+    const channel = MethodChannel('com.mindgarden.quietspace/app_controls');
+    try {
+      await channel.invokeMethod('minimizeApp');
+    } on PlatformException catch (e) {
+      debugPrint("Failed to minimize app: '${e.message}'.");
+    }
   }
 
   void _startTimer() {
@@ -295,7 +390,10 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     );
 
     _timerController!.reverse(from: 1.0);
+    _setupTimerListener();
+  }
 
+  void _setupTimerListener() {
     _timerController!.addListener(() {
       setState(() {
         _currentSeconds =
@@ -355,8 +453,17 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
     try {
       await _audioPlayer.stop(); // Stop any current sound
-      await _audioPlayer
-          .play(AssetSource(_themes[_currentThemeIndex].soundPath));
+
+      final soundPath = _themes[_currentThemeIndex].soundPath;
+
+      if (soundPath.startsWith("http")) {
+        // Play from URL (GitHub Raw, Internet Archive, etc.)
+        debugPrint("Playing audio from URL: $soundPath");
+        await _audioPlayer.play(UrlSource(soundPath));
+      } else {
+        // Play from local assets
+        await _audioPlayer.play(AssetSource(soundPath));
+      }
     } catch (e) {
       debugPrint("Error playing audio: $e");
     }
@@ -468,8 +575,12 @@ class _PlantTimerPageState extends State<PlantTimerPage>
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: _onWillPop,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        _handlePopInvoked();
+      },
       child: Scaffold(
         backgroundColor: _themes[_currentThemeIndex].color,
         appBar: AppBar(
@@ -707,38 +818,47 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     );
   }
 
-  Future<bool> _onWillPop() async {
+  void _handlePopInvoked() {
     if (_isRunning) {
-      final shouldPop = await showDialog<bool>(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text("Stop Growing?"),
-            content: const Text(
-                "Leaving now will cancel your session and the plant will stop growing."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text("Stay"),
-              ),
-              TextButton(
-                onPressed: () {
-                  _stopTimer();
-                  Navigator.of(context).pop(true);
-                },
-                child: const Text("Leave", style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          );
-        },
-      );
-      if (shouldPop == true) {
-        return true;
-      }
+      _showExitDialog();
     } else {
-      return true;
+      Navigator.of(context).pop();
     }
-    return false;
+  }
+
+  void _showExitDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Timer is Running"),
+          content: const Text(
+              "Do you want to stop the timer or keep it running in the background?"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                _stopTimer();
+                Navigator.of(context).pop(); // Close page
+              },
+              child: const Text("Stop & Exit",
+                  style: TextStyle(color: Colors.red)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                _minimizeApp();
+              },
+              child: const Text("Run in Background"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Cancel"),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _stopTimer() {
