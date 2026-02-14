@@ -48,6 +48,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
   int _currentSeconds = 0;
   bool _isRunning = false;
   bool _isSeeding = false;
+  bool _isCheckingTimer = false;
 
   String _motivationalMessage = "";
   String _lastQuote = "";
@@ -119,27 +120,34 @@ class _PlantTimerPageState extends State<PlantTimerPage>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _growthController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 1));
+    _growthController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
 
     _growth = CurvedAnimation(
       parent: _growthController,
       curve: Curves.easeOutCubic,
     );
 
-    _confettiController =
-        ConfettiController(duration: const Duration(seconds: 3));
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 3),
+    );
 
-    _rainController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 2))
-          ..repeat();
+    _rainController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
 
-    _backgroundController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 10))
-          ..repeat();
+    _backgroundController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat();
 
     _seedFallController = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1500));
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
 
     _checkFirstRun();
     _checkRunningTimer();
@@ -199,8 +207,11 @@ class _PlantTimerPageState extends State<PlantTimerPage>
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     // Arrow pointing up
-                    const Icon(Icons.arrow_upward,
-                        size: 20, color: Colors.black),
+                    const Icon(
+                      Icons.arrow_upward,
+                      size: 20,
+                      color: Colors.black,
+                    ),
                     const SizedBox(height: 4),
                     const Text(
                       "Change View",
@@ -214,10 +225,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
                     const Text(
                       "🔊 Volume Up for Sound Effects",
                       textAlign: TextAlign.right,
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.black87, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
@@ -289,56 +297,65 @@ class _PlantTimerPageState extends State<PlantTimerPage>
   }
 
   void _checkRunningTimer() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isRunning = prefs.getBool('is_timer_running') ?? false;
+    if (_isCheckingTimer) return;
+    _isCheckingTimer = true;
 
-    if (isRunning) {
-      final targetTimeMs = prefs.getInt('target_time') ?? 0;
-      final totalDuration = prefs.getInt('total_duration') ?? 0;
-      final themeIndex = prefs.getInt('current_theme_index') ?? 0;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isRunning = prefs.getBool('is_timer_running') ?? false;
 
-      final targetTime = DateTime.fromMillisecondsSinceEpoch(targetTimeMs);
-      final now = DateTime.now();
+      if (isRunning) {
+        final targetTimeMs = prefs.getInt('target_time') ?? 0;
+        final totalDuration = prefs.getInt('total_duration') ?? 0;
+        final themeIndex = prefs.getInt('current_theme_index') ?? 0;
 
-      if (now.isBefore(targetTime)) {
-        final remaining = targetTime.difference(now).inSeconds;
-        setState(() {
-          _currentThemeIndex = themeIndex;
-          _totalSeconds = totalDuration;
-          _currentSeconds = remaining;
-          _isRunning = true;
-          _motivationalMessage = "Welcome back! Keep focusing...";
-        });
+        final targetTime = DateTime.fromMillisecondsSinceEpoch(targetTimeMs);
+        final now = DateTime.now();
 
-        // Resume audio
-        _playThemeSound();
+        if (now.isBefore(targetTime)) {
+          final remaining = targetTime.difference(now).inSeconds;
+          if (!mounted) return;
+          setState(() {
+            _currentThemeIndex = themeIndex;
+            _totalSeconds = totalDuration;
+            _currentSeconds = remaining;
+            _isRunning = true;
+            _motivationalMessage = "Welcome back! Keep focusing...";
+          });
 
-        // Calculate progress
-        double progress = 1.0 - (remaining / totalDuration);
+          // Resume audio
+          _playThemeSound();
 
-        // Setup controllers
-        _growthController.duration = Duration(seconds: totalDuration);
-        _growthController.forward(from: progress);
+          // Calculate progress
+          double progress = 1.0 - (remaining / totalDuration);
 
-        _timerController?.dispose();
-        _timerController = AnimationController(
-          vsync: this,
-          duration: Duration(seconds: totalDuration),
-        );
-        _timerController!.reverse(from: 1.0 - progress);
-        _setupTimerListener();
-      } else {
-        // Timer finished
-        setState(() {
-          _isRunning = false;
-          _currentSeconds = 0;
-          _motivationalMessage = "Timer completed while you were away!";
-        });
-        prefs.setBool('is_timer_running', false);
-        _growthController.value = 1.0;
-        _milestone100 = true;
-        _confettiController.play();
+          // Setup controllers
+          _growthController.duration = Duration(seconds: totalDuration);
+          _growthController.forward(from: progress);
+
+          _timerController?.dispose();
+          _timerController = AnimationController(
+            vsync: this,
+            duration: Duration(seconds: totalDuration),
+          );
+          _timerController!.reverse(from: 1.0 - progress);
+          _setupTimerListener();
+        } else {
+          // Timer finished
+          if (!mounted) return;
+          setState(() {
+            _isRunning = false;
+            _currentSeconds = 0;
+            _motivationalMessage = "Timer completed while you were away!";
+          });
+          await prefs.setBool('is_timer_running', false);
+          _growthController.value = 1.0;
+          _milestone100 = true;
+          _confettiController.play();
+        }
       }
+    } finally {
+      _isCheckingTimer = false;
     }
   }
 
@@ -396,8 +413,10 @@ class _PlantTimerPageState extends State<PlantTimerPage>
   void _setupTimerListener() {
     _timerController!.addListener(() {
       setState(() {
-        _currentSeconds =
-            max(0, (_timerController!.value * _totalSeconds).round());
+        _currentSeconds = max(
+          0,
+          (_timerController!.value * _totalSeconds).round(),
+        );
 
         final progress = 1.0 - _timerController!.value;
 
@@ -602,11 +621,7 @@ class _PlantTimerPageState extends State<PlantTimerPage>
           children: [
             // Moon Animation (Quiet Night)
             if (_themes[_currentThemeIndex].name == "Quiet Night")
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: MoonPainter(),
-                ),
-              ),
+              Positioned.fill(child: CustomPaint(painter: MoonPainter())),
 
             // Background Animation (Sun or Beach)
             if (_themes[_currentThemeIndex].name == "Sunny Morning")
@@ -697,27 +712,31 @@ class _PlantTimerPageState extends State<PlantTimerPage>
 
                         // Plant Animation
                         // Use LayoutBuilder to ensure painter gets correct size
-                        LayoutBuilder(builder: (context, constraints) {
-                          return Container(
-                            width: constraints.maxWidth,
-                            height: constraints.maxHeight,
-                            alignment: Alignment.bottomCenter,
-                            child: AnimatedBuilder(
-                              animation: _growth,
-                              builder: (_, __) {
-                                return CustomPaint(
-                                  // Use the full available size
-                                  size: Size(constraints.maxWidth,
-                                      constraints.maxHeight),
-                                  painter: PlantPainter(
-                                    growth: _growth.value,
-                                    type: _flowerType,
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        }),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Container(
+                              width: constraints.maxWidth,
+                              height: constraints.maxHeight,
+                              alignment: Alignment.bottomCenter,
+                              child: AnimatedBuilder(
+                                animation: _growth,
+                                builder: (_, __) {
+                                  return CustomPaint(
+                                    // Use the full available size
+                                    size: Size(
+                                      constraints.maxWidth,
+                                      constraints.maxHeight,
+                                    ),
+                                    painter: PlantPainter(
+                                      growth: _growth.value,
+                                      type: _flowerType,
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
 
                         // Falling Seed Animation
                         if (_isSeeding)
@@ -727,7 +746,8 @@ class _PlantTimerPageState extends State<PlantTimerPage>
                               builder: (context, child) {
                                 return CustomPaint(
                                   painter: SeedPainter(
-                                      progress: _seedFallController.value),
+                                    progress: _seedFallController.value,
+                                  ),
                                 );
                               },
                             ),
@@ -741,8 +761,9 @@ class _PlantTimerPageState extends State<PlantTimerPage>
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.3), // Transparent panel
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(30)),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(30),
+                      ),
                     ),
                     child: Column(
                       children: [
@@ -751,17 +772,31 @@ class _PlantTimerPageState extends State<PlantTimerPage>
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               _buildTimerItem(
-                                  _formatTimePart(_currentSeconds, 0), "HH"),
-                              const Text(":",
-                                  style: TextStyle(
-                                      color: Colors.white, fontSize: 42)),
+                                _formatTimePart(_currentSeconds, 0),
+                                "HH",
+                              ),
+                              const Text(
+                                ":",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 42,
+                                ),
+                              ),
                               _buildTimerItem(
-                                  _formatTimePart(_currentSeconds, 1), "MM"),
-                              const Text(":",
-                                  style: TextStyle(
-                                      color: Colors.white, fontSize: 42)),
+                                _formatTimePart(_currentSeconds, 1),
+                                "MM",
+                              ),
+                              const Text(
+                                ":",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 42,
+                                ),
+                              ),
                               _buildTimerItem(
-                                  _formatTimePart(_currentSeconds, 2), "SS"),
+                                _formatTimePart(_currentSeconds, 2),
+                                "SS",
+                              ),
                             ],
                           )
                         else
@@ -833,7 +868,8 @@ class _PlantTimerPageState extends State<PlantTimerPage>
         return AlertDialog(
           title: const Text("Timer is Running"),
           content: const Text(
-              "Do you want to stop the timer or keep it running in the background?"),
+            "Do you want to stop the timer or keep it running in the background?",
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -841,8 +877,10 @@ class _PlantTimerPageState extends State<PlantTimerPage>
                 _stopTimer();
                 Navigator.of(context).pop(); // Close page
               },
-              child: const Text("Stop & Exit",
-                  style: TextStyle(color: Colors.red)),
+              child: const Text(
+                "Stop & Exit",
+                style: TextStyle(color: Colors.red),
+              ),
             ),
             TextButton(
               onPressed: () {
@@ -924,11 +962,14 @@ class _PlantTimerPageState extends State<PlantTimerPage>
   Widget _timePicker(String label, int value, Function(int) onChanged) {
     return Column(
       children: [
-        Text(label,
-            style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 8),
         SizedBox(
           width: 70,
@@ -1005,25 +1046,37 @@ class PlantPainter extends CustomPainter {
         ..color = const Color(0xFF3E2723); // Dark soil/mud
       canvas.drawOval(
         Rect.fromCenter(
-            center: Offset(centerX, bottomY + 5), width: 230, height: 70),
+          center: Offset(centerX, bottomY + 5),
+          width: 230,
+          height: 70,
+        ),
         soilPaint,
       );
 
       // 2. Water (Gradient for depth)
       Paint waterPaint = Paint()
-        ..shader = RadialGradient(
-          colors: [
-            const Color(0xFF4FC3F7), // Light Blue (Center)
-            const Color(0xFF0288D1), // Deep Blue (Edge)
-          ],
-          radius: 0.8,
-          center: Alignment.center,
-        ).createShader(Rect.fromCenter(
-            center: Offset(centerX, bottomY), width: 220, height: 60));
+        ..shader =
+            RadialGradient(
+              colors: [
+                const Color(0xFF4FC3F7), // Light Blue (Center)
+                const Color(0xFF0288D1), // Deep Blue (Edge)
+              ],
+              radius: 0.8,
+              center: Alignment.center,
+            ).createShader(
+              Rect.fromCenter(
+                center: Offset(centerX, bottomY),
+                width: 220,
+                height: 60,
+              ),
+            );
 
       canvas.drawOval(
         Rect.fromCenter(
-            center: Offset(centerX, bottomY), width: 220, height: 60),
+          center: Offset(centerX, bottomY),
+          width: 220,
+          height: 60,
+        ),
         waterPaint,
       );
 
@@ -1035,7 +1088,10 @@ class PlantPainter extends CustomPainter {
 
       canvas.drawOval(
         Rect.fromCenter(
-            center: Offset(centerX, bottomY), width: 180, height: 45),
+          center: Offset(centerX, bottomY),
+          width: 180,
+          height: 45,
+        ),
         ripplePaint,
       );
     } else {
@@ -1046,7 +1102,8 @@ class PlantPainter extends CustomPainter {
 
     // 2. Draw Stem
     Paint stemPaint = Paint()
-      ..color = const Color(0xFF2E7D32) // Darker green
+      ..color =
+          const Color(0xFF2E7D32) // Darker green
       ..strokeWidth = 6
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -1099,41 +1156,101 @@ class PlantPainter extends CustomPainter {
         // 0.9 means 90% up the stem from the bottom
         double base = soilLevelY;
 
-        _drawLeaf(canvas, centerX, base - (stemHeight * 0.9), 1,
-            leafGrowth * 0.6, type);
+        _drawLeaf(
+          canvas,
+          centerX,
+          base - (stemHeight * 0.9),
+          1,
+          leafGrowth * 0.6,
+          type,
+        );
         if (growth > 0.25) {
-          _drawLeaf(canvas, centerX, base - (stemHeight * 0.75), -1,
-              leafGrowth * 0.7, type);
+          _drawLeaf(
+            canvas,
+            centerX,
+            base - (stemHeight * 0.75),
+            -1,
+            leafGrowth * 0.7,
+            type,
+          );
         }
         if (growth > 0.4) {
-          _drawLeaf(canvas, centerX, base - (stemHeight * 0.6), 1,
-              leafGrowth * 0.8, type);
+          _drawLeaf(
+            canvas,
+            centerX,
+            base - (stemHeight * 0.6),
+            1,
+            leafGrowth * 0.8,
+            type,
+          );
         }
         if (growth > 0.5) {
-          _drawLeaf(canvas, centerX, base - (stemHeight * 0.5), -1,
-              leafGrowth * 0.85, type);
+          _drawLeaf(
+            canvas,
+            centerX,
+            base - (stemHeight * 0.5),
+            -1,
+            leafGrowth * 0.85,
+            type,
+          );
         }
         if (growth > 0.6) {
-          _drawLeaf(canvas, centerX, base - (stemHeight * 0.4), 1,
-              leafGrowth * 0.9, type);
+          _drawLeaf(
+            canvas,
+            centerX,
+            base - (stemHeight * 0.4),
+            1,
+            leafGrowth * 0.9,
+            type,
+          );
         }
         if (growth > 0.7) {
-          _drawLeaf(canvas, centerX, base - (stemHeight * 0.3), -1,
-              leafGrowth * 0.9, type);
+          _drawLeaf(
+            canvas,
+            centerX,
+            base - (stemHeight * 0.3),
+            -1,
+            leafGrowth * 0.9,
+            type,
+          );
         }
         if (growth > 0.8) {
           _drawLeaf(
-              canvas, centerX, base - (stemHeight * 0.2), 1, leafGrowth, type);
-          _drawLeaf(canvas, centerX, base - (stemHeight * 0.15), -0.5,
-              leafGrowth * 0.8, type);
+            canvas,
+            centerX,
+            base - (stemHeight * 0.2),
+            1,
+            leafGrowth,
+            type,
+          );
+          _drawLeaf(
+            canvas,
+            centerX,
+            base - (stemHeight * 0.15),
+            -0.5,
+            leafGrowth * 0.8,
+            type,
+          );
         }
       } else {
         // Sunflower leaves
         double base = soilLevelY;
-        _drawLeaf(canvas, centerX, base - (stemHeight * 0.6), 1,
-            leafGrowth * 0.8, type);
         _drawLeaf(
-            canvas, centerX, base - (stemHeight * 0.4), -1, leafGrowth, type);
+          canvas,
+          centerX,
+          base - (stemHeight * 0.6),
+          1,
+          leafGrowth * 0.8,
+          type,
+        );
+        _drawLeaf(
+          canvas,
+          centerX,
+          base - (stemHeight * 0.4),
+          -1,
+          leafGrowth,
+          type,
+        );
       }
     }
 
@@ -1173,18 +1290,24 @@ class PlantPainter extends CustomPainter {
     potBody.lineTo(centerX + potWidthTop / 2, bottomY - potHeight); // Top Right
     // Slightly curved sides for realistic look
     potBody.quadraticBezierTo(
-        centerX + potWidthTop / 2 + 2,
-        bottomY - potHeight / 2,
-        centerX + potWidthBottom / 2,
-        bottomY); // Bottom Right
+      centerX + potWidthTop / 2 + 2,
+      bottomY - potHeight / 2,
+      centerX + potWidthBottom / 2,
+      bottomY,
+    ); // Bottom Right
     // Curved bottom
-    potBody.quadraticBezierTo(centerX, bottomY + 5,
-        centerX - potWidthBottom / 2, bottomY); // Bottom Left
     potBody.quadraticBezierTo(
-        centerX - potWidthTop / 2 - 2,
-        bottomY - potHeight / 2,
-        centerX - potWidthTop / 2,
-        bottomY - potHeight); // Back to Top Left
+      centerX,
+      bottomY + 5,
+      centerX - potWidthBottom / 2,
+      bottomY,
+    ); // Bottom Left
+    potBody.quadraticBezierTo(
+      centerX - potWidthTop / 2 - 2,
+      bottomY - potHeight / 2,
+      centerX - potWidthTop / 2,
+      bottomY - potHeight,
+    ); // Back to Top Left
     potBody.close();
     canvas.drawPath(potBody, potPaint);
 
@@ -1198,7 +1321,9 @@ class PlantPainter extends CustomPainter {
     rimPath.moveTo(centerX - rimWidth / 2, rimTopY);
     rimPath.lineTo(centerX + rimWidth / 2, rimTopY);
     rimPath.lineTo(
-        centerX + rimWidth / 2 - 2, rimBottomY); // Taper rim slightly
+      centerX + rimWidth / 2 - 2,
+      rimBottomY,
+    ); // Taper rim slightly
     rimPath.lineTo(centerX - rimWidth / 2 + 2, rimBottomY);
     rimPath.close();
     canvas.drawPath(rimPath, potPaint);
@@ -1207,9 +1332,10 @@ class PlantPainter extends CustomPainter {
     Paint soilPaint = Paint()..color = const Color(0xFF5D4037);
     canvas.drawArc(
       Rect.fromCenter(
-          center: Offset(centerX, rimTopY),
-          width: potWidthTop - 10,
-          height: 20),
+        center: Offset(centerX, rimTopY),
+        width: potWidthTop - 10,
+        height: 20,
+      ),
       pi,
       pi,
       true,
@@ -1217,8 +1343,13 @@ class PlantPainter extends CustomPainter {
     );
   }
 
-  void _drawThorns(Canvas canvas, double centerX, double bottomY,
-      double stemHeight, double growth) {
+  void _drawThorns(
+    Canvas canvas,
+    double centerX,
+    double bottomY,
+    double stemHeight,
+    double growth,
+  ) {
     Paint thornPaint = Paint()..color = const Color(0xFF1B5E20);
     // Simple thorns along the stem
     for (double i = 0.2; i < growth; i += 0.2) {
@@ -1244,8 +1375,14 @@ class PlantPainter extends CustomPainter {
     }
   }
 
-  void _drawLeaf(Canvas canvas, double x, double y, double direction,
-      double scale, FlowerType type) {
+  void _drawLeaf(
+    Canvas canvas,
+    double x,
+    double y,
+    double direction,
+    double scale,
+    FlowerType type,
+  ) {
     if (scale <= 0) return;
 
     Paint leafPaint = Paint()
@@ -1367,7 +1504,8 @@ class PlantPainter extends CustomPainter {
     ];
 
     Paint strokePaint = Paint()
-      ..color = const Color(0xFF5D0000) // Very dark red outline
+      ..color =
+          const Color(0xFF5D0000) // Very dark red outline
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5;
 
@@ -1393,20 +1531,26 @@ class PlantPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
 
-    canvas.drawArc(Rect.fromCircle(center: Offset(x, y), radius: 5 * bloom), 0,
-        pi * 1.5, false, centerDetail);
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(x, y), radius: 5 * bloom),
+      0,
+      pi * 1.5,
+      false,
+      centerDetail,
+    );
   }
 
   void _drawRoseLayer(
-      Canvas canvas,
-      double x,
-      double y,
-      double bloom,
-      int count,
-      double radius,
-      Color color,
-      Paint strokePaint,
-      double angleOffset) {
+    Canvas canvas,
+    double x,
+    double y,
+    double bloom,
+    int count,
+    double radius,
+    Color color,
+    Paint strokePaint,
+    double angleOffset,
+  ) {
     Paint paint = Paint()..color = color;
     double r = radius * bloom;
 
@@ -1490,8 +1634,13 @@ class RainPainter extends CustomPainter {
     _drawRainLayer(canvas, size, paint, count: 40, speedMultiplier: 2.0);
   }
 
-  void _drawRainLayer(Canvas canvas, Size size, Paint paint,
-      {required int count, required double speedMultiplier}) {
+  void _drawRainLayer(
+    Canvas canvas,
+    Size size,
+    Paint paint, {
+    required int count,
+    required double speedMultiplier,
+  }) {
     var r = Random(42 + count); // Different seed for different layers
 
     for (int i = 0; i < count; i++) {
@@ -1501,7 +1650,8 @@ class RainPainter extends CustomPainter {
 
       // Calculate Y position based on animation loop
       double fallDistance = size.height + length;
-      double y = (startY + (animationValue * speedMultiplier * fallDistance)) %
+      double y =
+          (startY + (animationValue * speedMultiplier * fallDistance)) %
           fallDistance;
 
       // To make it look continuous:
@@ -1528,7 +1678,8 @@ class SunPainter extends CustomPainter {
     final radius = 40.0;
 
     final paint = Paint()
-      ..color = const Color(0xFFFFD54F) // Amber 300
+      ..color =
+          const Color(0xFFFFD54F) // Amber 300
       ..style = PaintingStyle.fill;
 
     // Draw Sun Body
@@ -1579,10 +1730,7 @@ class BeachPainter extends CustomPainter {
     final sandPaint = Paint()
       ..color = const Color(0xFFE6BF83); // Yellowish brown sand color
 
-    canvas.drawRect(
-      Rect.fromLTWH(0, sandY, size.width, sandHeight),
-      sandPaint,
-    );
+    canvas.drawRect(Rect.fromLTWH(0, sandY, size.width, sandHeight), sandPaint);
 
     // 2. Draw Waves
     // We want waves coming "to" the beach.
@@ -1622,7 +1770,9 @@ class BeachPainter extends CustomPainter {
 
       for (double x = 0; x <= size.width; x += 10) {
         wavePath.lineTo(
-            x, waveY + sin((x / 50) + (animationValue * 2 * pi)) * 5);
+          x,
+          waveY + sin((x / 50) + (animationValue * 2 * pi)) * 5,
+        );
       }
 
       // Fade out as it approaches sand
@@ -1637,19 +1787,26 @@ class BeachPainter extends CustomPainter {
 
     // Draw "foam" at the sand line
     final foamPaint = Paint()
-      ..color =
-          Colors.white.withOpacity(0.4 + 0.2 * sin(animationValue * 2 * pi))
+      ..color = Colors.white.withOpacity(
+        0.4 + 0.2 * sin(animationValue * 2 * pi),
+      )
       ..style = PaintingStyle.fill;
 
     // Irregular foam edge
     Path foamPath = Path();
     foamPath.moveTo(0, sandY);
     for (double x = 0; x <= size.width; x += 20) {
-      foamPath.quadraticBezierTo(x + 10,
-          sandY - 5 + sin(animationValue * 2 * pi + x) * 3, x + 20, sandY);
+      foamPath.quadraticBezierTo(
+        x + 10,
+        sandY - 5 + sin(animationValue * 2 * pi + x) * 3,
+        x + 20,
+        sandY,
+      );
     }
     foamPath.lineTo(
-        size.width, size.height); // Cover bottom to be safe? No, just a strip
+      size.width,
+      size.height,
+    ); // Cover bottom to be safe? No, just a strip
     foamPath.lineTo(0, size.height);
     foamPath.close();
 
@@ -1713,13 +1870,17 @@ class SeedPainter extends CustomPainter {
     double currentX = size.width / 2;
 
     Paint paint = Paint()
-      ..color = const Color(0xFF8D6E63) // Brown seed
+      ..color =
+          const Color(0xFF8D6E63) // Brown seed
       ..style = PaintingStyle.fill;
 
     // Draw seed (oval shape)
     canvas.drawOval(
       Rect.fromCenter(
-          center: Offset(currentX, currentY), width: 10, height: 15),
+        center: Offset(currentX, currentY),
+        width: 10,
+        height: 15,
+      ),
       paint,
     );
   }

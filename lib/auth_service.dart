@@ -5,8 +5,13 @@ class AuthService {
 
   /// Checks if the user is currently logged in.
   static Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyIsLoggedIn) ?? false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_keyIsLoggedIn) ?? false;
+    } catch (e) {
+      print('AuthService.isLoggedIn error: $e');
+      return false; // Default to not logged in if there's an error
+    }
   }
 
   /// Logs the user in (persists state).
