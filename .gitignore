@@ -47,3 +47,8 @@ app.*.map.json
 # Android package artifacts
 *.apk
 *.aab
+
+# Keystore files
+key.properties
+**/*.jks
+**/*.keystore
