@@ -2,11 +2,44 @@ import 'package:flutter/material.dart';
 import 'breathing_page.dart';
 import 'plant_timer_page.dart';
 import 'progress_page.dart';
-import 'auth_service.dart';
+import 'google_auth_service.dart';
 import 'login_page.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  Map<String, String?> _userData = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final userData = await GoogleAuthService.getCurrentUser();
+    if (mounted) {
+      setState(() {
+        _userData = userData;
+      });
+    }
+  }
+
+  Future<void> _handleSignOut() async {
+    await GoogleAuthService.signOut();
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+        (route) => false,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,22 +49,31 @@ class DashboardPage extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false, // Don't show back button to login
-        title: const Text("Choose Your Path",
-            style: TextStyle(color: Colors.white)),
-        centerTitle: true,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Choose Your Path",
+                style: TextStyle(color: Colors.white, fontSize: 18)),
+            if (_userData['name'] != null)
+              Text(
+                "Welcome, ${_userData['name']}!",
+                style: const TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+          ],
+        ),
+        centerTitle: false,
         actions: [
+          if (_userData['photo'] != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: CircleAvatar(
+                backgroundImage: NetworkImage(_userData['photo']!),
+                radius: 16,
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () async {
-              await AuthService.logout();
-              if (context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                  (route) => false,
-                );
-              }
-            },
+            onPressed: _handleSignOut,
           ),
         ],
       ),

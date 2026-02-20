@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'login_page.dart';
 import 'dashboard_page.dart';
-import 'auth_service.dart';
+import 'google_auth_service.dart';
 
 void main() {
   runApp(const AppInit());
@@ -30,18 +29,9 @@ class _AppInitState extends State<AppInit> {
     try {
       WidgetsFlutterBinding.ensureInitialized();
 
-      // Initialize Firebase
-      try {
-        await Firebase.initializeApp();
-        print('Firebase initialized successfully');
-      } catch (e) {
-        print('Firebase initialization failed: $e');
-        // Continue without Firebase - app should still work
-      }
-
       // Check auth status
       try {
-        _isLoggedIn = await AuthService.isLoggedIn();
+        _isLoggedIn = await GoogleAuthService.isLoggedIn();
         print('Auth check completed: isLoggedIn = $_isLoggedIn');
       } catch (e) {
         print('Auth check failed: $e');

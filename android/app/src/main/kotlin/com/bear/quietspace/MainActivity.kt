@@ -8,5 +8,6 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.bear.quietspace/app_controls"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
     }
 }

@@ -15,7 +15,7 @@ dependencies:
   http: ^1.6.0
   url_launcher: ^6.3.2
   shared_preferences: ^2.5.4
-  firebase_core: ^4.4.0
+  google_sign_in: ^6.2.1
   # For state management, we'll use ValueNotifier/ChangeNotifier as it's built-in and sufficient.
   # If more complex state is needed, provider/riverpod can be added.
   

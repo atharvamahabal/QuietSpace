@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dashboard_page.dart';
-import 'auth_service.dart';
+import 'google_auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,23 +18,46 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  Future<void> _handleLogin() async {
-    // Simulate a network delay for realism
+  Future<void> _handleGoogleSignIn() async {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
-    await Future.delayed(const Duration(seconds: 1));
-    await AuthService.login();
+    try {
+      final result = await GoogleAuthService.signInWithGoogle();
 
-    if (mounted) {
-      Navigator.pop(context); // Dismiss loading
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const DashboardPage()),
-      );
+      if (mounted) {
+        Navigator.pop(context); // Dismiss loading
+
+        if (result['success'] == true) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardPage()),
+          );
+        } else {
+          // Show error message
+          final errorMessage = result['message'] as String? ??
+              'Google sign-in failed. Please try again.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Dismiss loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sign-in error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -86,83 +109,24 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 40),
 
-                  // Email Input
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: const TextField(
-                      style: TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Email',
-                        hintStyle: TextStyle(color: Colors.white60),
-                        border: InputBorder.none,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Continue Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 55,
-                    child: ElevatedButton(
-                      onPressed: _handleLogin,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(
-                            0xFF00BFA5), // Teal/Green color from screenshot
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        "Continue",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 40),
                   const Center(
                     child: Text(
-                      "Or continue with",
-                      style: TextStyle(color: Colors.white54, fontSize: 14),
+                      "Sign in to continue",
+                      style: TextStyle(color: Colors.white54, fontSize: 16),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 40),
 
                   _buildSocialButton(
                     label: "Google",
                     color: Colors.white,
                     textColor: Colors.black,
                     icon: Icons.g_mobiledata, // Placeholder for Google icon
-                    onTap: _handleLogin,
+                    onTap: _handleGoogleSignIn,
                   ),
-                  const SizedBox(height: 15),
-                  _buildSocialButton(
-                    label: "Facebook",
-                    color: const Color(0xFF1877F2),
-                    textColor: Colors.white,
-                    icon: Icons.facebook,
-                    onTap: _handleLogin,
-                  ),
-                  const SizedBox(height: 15),
-                  _buildSocialButton(
-                    label: "Twitter",
-                    color: const Color(0xFF1DA1F2),
-                    textColor: Colors.white,
-                    icon: Icons.alternate_email, // Placeholder for Twitter/X icon
-                    onTap: _handleLogin,
-                  ),
-                  
+                  const SizedBox(height: 30),
+                  _buildUpdateButton(),
+
                   const SizedBox(height: 40),
                   // Sign Up / Forgot Password
                   Row(
@@ -220,6 +184,33 @@ class _LoginPageState extends State<LoginPage> {
             borderRadius: BorderRadius.circular(12),
           ),
           elevation: 0,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUpdateButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 55,
+      child: OutlinedButton.icon(
+        onPressed: () => _launchUrl(
+            'https://drive.google.com/drive/folders/1ltNSuXKZe3vRvNsbRHbp602xt6bREjdG?usp=sharing'),
+        icon: const Icon(Icons.update, color: Colors.white),
+        label: const Text(
+          "Check for Updates",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Colors.white54),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: Colors.transparent,
         ),
       ),
     );
